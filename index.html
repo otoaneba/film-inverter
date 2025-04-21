@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Color Negative Film Inverter</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 flex flex-col items-center min-h-screen p-4">
+  <h1 class="text-3xl font-bold mb-6">Color Negative Film Inverter</h1>
+  <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-4xl">
+    <input type="file" id="imageInput" accept="image/*" class="mb-4">
+    <div class="flex flex-col md:flex-row gap-4">
+      <div class="flex-1">
+        <canvas id="imageCanvas" class="w-full border"></canvas>
+      </div>
+      <div class="flex-1 space-y-4">
+        <div>
+          <h2 class="text-lg font-semibold">Step 1: Remove Orange Mask</h2>
+          <p class="text-sm text-gray-600">Click on an unexposed area (e.g., film border) to sample.</p>
+          <button id="resetWhiteBalance" class="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">Reset White Balance</button>
+        </div>
+        <div>
+          <h2 class="text-lg font-semibold">Step 2: Invert Colors</h2>
+          <button id="invertButton" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">Invert Image</button>
+        </div>
+        <div>
+          <h2 class="text-lg font-semibold">Step 3: Adjust RGB Levels</h2>
+          <div class="space-y-2">
+            <div>
+              <label class="block text-sm">Red Black Point: <span id="redBlackValue">0</span></label>
+              <input type="range" id="redBlack" min="0" max="255" value="0" class="w-full">
+            </div>
+            <div>
+              <label class="block text-sm">Red White Point: <span id="redWhiteValue">255</span></label>
+              <input type="range" id="redWhite" min="0" max="255" value="255" class="w-full">
+            </div>
+            <div>
+              <label class="block text-sm">Green Black Point: <span id="greenBlackValue">0</span></label>
+              <input type="range" id="greenBlack" min="0" max="255" value="0" class="w-full">
+            </div>
+            <div>
+              <label class="block text-sm">Green White Point: <span id="greenWhiteValue">255</span></label>
+              <input type="range" id="greenWhite" min="0" max="255" value="255" class="w-full">
+            </div>
+            <div>
+              <label class="block text-sm">Blue Black Point: <span id="blueBlackValue">0</span></label>
+              <input type="range" id="blueBlack" min="0" max="255" value="0" class="w-full">
+            </div>
+            <div>
+              <label class="block text-sm">Blue White Point: <span id="blueWhiteValue">255</span></label>
+              <input type="range" id="blueWhite" min="0" max="255" value="255" class="w-full">
+            </div>
+            <button id="resetLevels" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">Reset Levels</button>
+          </div>
+        </div>
+        <div>
+          <h2 class="text-lg font-semibold">Download</h2>
+          <a id="downloadButton" class="inline-block px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600" download="inverted_image.png">Download Image</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('imageCanvas');
+    const ctx = canvas.getContext('2d');
+    let originalImageData = null;
+    let currentImageData = null;
+    let whiteBalance = { r: 1, g: 1, b: 1 };
+    let levels = {
+      red: { black: 0, white: 255 },
+      green: { black: 0, white: 255 },
+      blue: { black: 0, white: 255 }
+    };
+    let isInverted = false;
+
+    // Load image
+    document.getElementById('imageInput').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const img = new Image();
+        img.onload = () => {
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx.drawImage(img, 0, 0);
+          originalImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          currentImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          updateImage();
+        };
+        img.src = URL.createObjectURL(file);
+      }
+    });
+
+    // Sample white balance
+    canvas.addEventListener('click', (e) => {
+      if (!originalImageData) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = Math.floor((e.clientX - rect.left) * (canvas.width / rect.width));
+      const y = Math.floor((e.clientY - rect.top) * (canvas.height / rect.height));
+      const index = (y * canvas.width + x) * 4;
+      const r = originalImageData.data[index];
+      const g = originalImageData.data[index + 1];
+      const b = originalImageData.data[index + 2];
+      // Normalize based on the sampled pixel (avoid division by zero)
+      whiteBalance.r = r > 0 ? 255 / r : 1;
+      whiteBalance.g = g > 0 ? 255 / g : 1;
+      whiteBalance.b = b > 0 ? 255 / b : 1;
+      updateImage();
+    });
+
+    // Reset white balance
+    document.getElementById('resetWhiteBalance').addEventListener('click', () => {
+      whiteBalance = { r: 1, g: 1, b: 1 };
+      updateImage();
+    });
+
+    // Invert image
+    document.getElementById('invertButton').addEventListener('click', () => {
+      isInverted = !isInverted;
+      updateImage();
+    });
+
+    // Update levels
+    const updateLevel = (channel, type, value) => {
+      levels[channel][type] = parseInt(value);
+      document.getElementById(`${channel}${type.charAt(0).toUpperCase() + type.slice(1)}Value`).textContent = value;
+      updateImage();
+    };
+
+    ['red', 'green', 'blue'].forEach(channel => {
+      ['black', 'white'].forEach(type => {
+        const input = document.getElementById(`${channel}${type.charAt(0).toUpperCase() + type.slice(1)}`);
+        input.addEventListener('input', () => updateLevel(channel, type, input.value));
+      });
+    });
+
+    // Reset levels
+    document.getElementById('resetLevels').addEventListener('click', () => {
+      levels = {
+        red: { black: 0, white: 255 },
+        green: { black: 0, white: 255 },
+        blue: { black: 0, white: 255 }
+      };
+      ['red', 'green', 'blue'].forEach(channel => {
+        ['black', 'white'].forEach(type => {
+          const input = document.getElementById(`${channel}${type.charAt(0).toUpperCase() + type.slice(1)}`);
+          input.value = type === 'black' ? 0 : 255;
+          document.getElementById(`${channel}${type.charAt(0).toUpperCase() + type.slice(1)}Value`).textContent = input.value;
+        });
+      });
+      updateImage();
+    });
+
+    // Update image
+    function updateImage() {
+      if (!originalImageData) return;
+      const data = new Uint8ClampedArray(originalImageData.data);
+      for (let i = 0; i < data.length; i += 4) {
+        let r = data[i];
+        let g = data[i + 1];
+        let b = data[i + 2];
+
+        // Step 1: Apply white balance
+        r = Math.min(255, r * whiteBalance.r);
+        g = Math.min(255, g * whiteBalance.g);
+        b = Math.min(255, b * whiteBalance.b);
+
+        // Step 2: Invert if needed
+        if (isInverted) {
+          r = 255 - r;
+          g = 255 - g;
+          b = 255 - b;
+        }
+
+        // Step 3: Apply levels
+        r = applyLevels(r, levels.red.black, levels.red.white);
+        g = applyLevels(g, levels.green.black, levels.green.white);
+        b = applyLevels(b, levels.blue.black, levels.blue.white);
+
+        data[i] = r;
+        data[i + 1] = g;
+        data[i + 2] = b;
+      }
+      currentImageData = new ImageData(data, canvas.width, canvas.height);
+      ctx.putImageData(currentImageData, 0, 0);
+      updateDownloadLink();
+    }
+
+    // Apply levels adjustment
+    function applyLevels(value, black, white) {
+      if (white <= black) return value;
+      return Math.min(255, Math.max(0, ((value - black) * 255) / (white - black)));
+    }
+
+    // Update download link
+    function updateDownloadLink() {
+      const downloadButton = document.getElementById('downloadButton');
+      downloadButton.href = canvas.toDataURL('image/png');
+    }
+  </script>
+</body>
+</html>
