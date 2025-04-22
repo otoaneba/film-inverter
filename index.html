@@ -24,10 +24,10 @@
           <p class="text-sm text-gray-600">Click an unexposed area of the film to set white balance.</p>
           <button id="resetWhiteBalance" class="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 opacity-50 cursor-not-allowed" disabled>Reset White Balance</button>
           <div class="flex gap-4 mt-2">
-            <img src="assets/example-border1.png" alt="Example film border for white balance" class="w-[150px] h-[100px] object-contain">
-            <img src="assets/example-border2.png" alt="Example film border for white balance" class="w-[150px] h-[100px] object-contain">
+            <img src="assets/example-border1.png" alt="Example film border for white balance" class="w-[150px] h-[100px] object-contain cursor-pointer" onclick="openModal('assets/example-border1-large.png')">
+            <img src="assets/example-border2.png" alt="Example film border for white balance" class="w-[150px] h-[100px] object-contain cursor-pointer" onclick="openModal('assets/example-border2-large.png')">
           </div>
-          <p class="text-xs text-gray-500 mt-1">Example: Click the orange border for white balance.</p>
+          <p class="text-xs text-gray-500 mt-1">Example: Click on the brightest spot or the edge of film to fix white balance (click example images to enlarge).</p>
         </div>
         <div>
           <h2 class="text-lg font-semibold">Step 3: Invert Colors</h2>
@@ -71,6 +71,16 @@
     </div>
   </div>
 
+  <!-- Modal for enlarged images -->
+  <div id="imageModal" class="fixed inset-0 bg-black/50 flex items-center justify-center hidden" role="dialog" aria-label="Enlarged example image">
+    <div class="bg-white p-4 rounded-lg max-w-2xl w-full mx-4">
+      <div class="flex justify-end">
+        <button id="closeModal" class="text-white bg-red-500 hover:bg-red-600 rounded-full w-8 h-8 flex items-center justify-center" aria-label="Close modal">✕</button>
+      </div>
+      <img id="modalImage" src="" alt="Enlarged example film border" class="w-full max-h-[400px] object-contain mt-2">
+    </div>
+  </div>
+
   <script>
     const canvas = document.getElementById('imageCanvas');
     const ctx = canvas.getContext('2d');
@@ -83,6 +93,37 @@
       blue: { black: 0, white: 255 }
     };
     let isInverted = false;
+
+    // Modal handling
+    const modal = document.getElementById('imageModal');
+    const modalImage = document.getElementById('modalImage');
+    const closeModalButton = document.getElementById('closeModal');
+
+    function openModal(imageSrc) {
+      modalImage.src = imageSrc;
+      modal.classList.remove('hidden');
+      closeModalButton.focus();
+      document.addEventListener('keydown', handleEscape);
+    }
+
+    function closeModal() {
+      modal.classList.add('hidden');
+      modalImage.src = '';
+      document.removeEventListener('keydown', handleEscape);
+    }
+
+    function handleEscape(e) {
+      if (e.key === 'Escape') {
+        closeModal();
+      }
+    }
+
+    closeModalButton.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        closeModal();
+      }
+    });
 
     // Draw placeholder text on canvas
     function drawPlaceholder() {
